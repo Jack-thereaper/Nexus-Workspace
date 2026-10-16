@@ -120,8 +120,14 @@
         }
         out[fd.name] = v;
       }
-      const problem = opts.onSubmit(out);
-      if (problem) err.textContent = problem; else closeModal();
+      const finish = (problem) => { if (problem) err.textContent = problem; else closeModal(); };
+      const result = opts.onSubmit(out);
+      if (result && typeof result.then === "function") {
+        const btn = f.querySelector("button[type=submit]");
+        btn.disabled = true;
+        result.then((p) => { btn.disabled = false; finish(p); },
+          (e2) => { btn.disabled = false; err.textContent = (e2 && e2.message) || "Something went wrong."; });
+      } else finish(result);
     });
     const del = r.querySelector("[data-delete]");
     if (del) del.addEventListener("click", () => {

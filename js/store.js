@@ -6,14 +6,14 @@
 (function () {
   "use strict";
   const NX = (window.NX = window.NX || {});
-  const PREFIX = "nexus.v1.";
+  const ROOT = "nexus.v1."; // legacy prefix. The first user ("main") keeps using it, so old data still loads.
   const SCHEMA = 1;
   const MAX_ITEMS = 20000;
 
   let persistent = true;
   try {
-    localStorage.setItem(PREFIX + "__probe", "1");
-    localStorage.removeItem(PREFIX + "__probe");
+    localStorage.setItem(ROOT + "__probe", "1");
+    localStorage.removeItem(ROOT + "__probe");
   } catch (e) { persistent = false; }
 
   /* ---------- tiny validators ---------- */
@@ -25,7 +25,14 @@
   const DATE = (v) => typeof v === "string" && (v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v));
   const DATE_REQ = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
   const TIME = (v) => typeof v === "string" && (v === "" || /^([01]\d|2[0-3]):[0-5]\d$/.test(v));
+  const L = (allowed) => (v) => Array.isArray(v) && v.length <= allowed.length &&
+    v.every((x) => allowed.indexOf(x) !== -1) && v.filter((x, i) => v.indexOf(x) === i).length === v.length;
   const URL_REQ = (v) => typeof v === "string" && v.length <= 500 && /^https?:\/\/\S+$/i.test(v);
+
+  const WIDGETS = ["tasks", "events", "goals", "jump"];
+  const TILES = ["due", "overdue", "open", "focus", "gpa"];
+  const ACCENTS = ["#4f8cff", "#22d3ee", "#34d399", "#a78bfa", "#fb923c", "#f472b6"];
+  NX.HUD = { WIDGETS: WIDGETS, TILES: TILES, ACCENTS: ACCENTS };
 
   const COLLECTIONS = {
     tasks: { type: "array", label: "Tasks", spec: {
@@ -47,11 +54,14 @@
     lab: { type: "array", label: "Lab log", spec: {
       id: R(64), title: R(200), date: DATE, notes: S(5000), result: S(2000) } },
     profile: { type: "object", label: "Profile",
-      defaults: { name: "Mr Damien", course: "Computer Engineering", level: "", school: "", bio: "" },
-      spec: { name: R(80), course: S(100), level: S(40), school: S(120), bio: S(500) } },
+      defaults: { name: "", course: "", level: "", school: "", bio: "" },
+      spec: { name: S(80), course: S(100), level: S(40), school: S(120), bio: S(500) } },
+    hud: { type: "object", label: "HUD layout",
+      defaults: { greeting: "", accent: "#4f8cff", compact: false, widgets: WIDGETS.slice(), tiles: TILES.slice() },
+      spec: { greeting: S(80), accent: E(ACCENTS), compact: B(), widgets: L(WIDGETS), tiles: L(TILES) } },
     settings: { type: "object", label: "Settings",
-      defaults: { gpaScale: "5", focusMin: 25, breakMin: 5, lastBackup: "" },
-      spec: { gpaScale: E(["4", "5"]), focusMin: N(1, 180), breakMin: N(1, 60), lastBackup: S(40) } }
+      defaults: { gpaScale: "5", focusMin: 25, breakMin: 5, lastBackup: "", welcomed: false },
+      spec: { gpaScale: E(["4", "5"]), focusMin: N(1, 180), breakMin: N(1, 60), lastBackup: S(40), welcomed: B() } }
   };
   const NAMES = Object.keys(COLLECTIONS);
 
@@ -77,18 +87,126 @@
   const cache = {};
   const mem = {};
 
+  /* ---------- users on this device ---------- */
+  const REG_KEY = "nexus.accounts", SESSION_KEY = "nexus.session";
+  let sessionOK = true, memSession = null, memReg = null;
+  try { sessionStorage.setItem("nexus.__p", "1"); sessionStorage.removeItem("nexus.__p"); } catch (e) { sessionOK = false; }
+  const sessGet = () => { if (!sessionOK) return memSession; try { return sessionStorage.getItem(SESSION_KEY); } catch (e) { return memSession; } };
+  const sessSet = (v) => { memSession = v; if (sessionOK) { try { sessionStorage.setItem(SESSION_KEY, v); } catch (e) { /* ignore */ } } };
+  const sessClear = () => { memSession = null; if (sessionOK) { try { sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ } } };
+  /* Set by "Switch user": keeps a lone, PIN-less user from being signed straight back in, so they can add someone. */
+  const PICK_KEY = "nexus.pick";
+  let memPick = false;
+  const pickGet = () => { if (!sessionOK) return memPick; try { return sessionStorage.getItem(PICK_KEY) === "1"; } catch (e) { return memPick; } };
+  const pickSet = (on) => { memPick = on; if (sessionOK) { try { if (on) sessionStorage.setItem(PICK_KEY, "1"); else sessionStorage.removeItem(PICK_KEY); } catch (e) { /* ignore */ } } };
+
+  function readReg() {
+    let raw = null;
+    if (persistent) { try { raw = JSON.parse(localStorage.getItem(REG_KEY) || "null"); } catch (e) { raw = null; } } else raw = memReg;
+    const list = raw && Array.isArray(raw.accounts) ? raw.accounts : [], out = [], seen = {};
+    list.forEach((a) => {
+      if (!a || typeof a.id !== "string" || !/^[a-z0-9]{1,32}$/.test(a.id) || seen[a.id]) return;
+      seen[a.id] = 1;
+      const ok = a.pin && typeof a.pin.salt === "string" && typeof a.pin.hash === "string";
+      out.push({ id: a.id, pin: ok ? { salt: a.pin.salt, hash: a.pin.hash } : null });
+    });
+    return { accounts: out.length ? out : [{ id: "main", pin: null }] };
+  }
+  function writeReg() {
+    memReg = copy(reg);
+    if (persistent) { try { localStorage.setItem(REG_KEY, JSON.stringify(reg)); } catch (e) { /* ignore */ } }
+  }
+  const prefixFor = (id) => (id === "main" ? ROOT : ROOT + "u." + id + ".");
+  let reg = readReg();
+  let currentId = null;
+  (function resolveSession() {
+    const s0 = sessGet();
+    if (s0 && reg.accounts.some((a) => a.id === s0)) currentId = s0;
+    else if (reg.accounts.length === 1 && !reg.accounts[0].pin && !pickGet()) { currentId = reg.accounts[0].id; sessSet(currentId); }
+  })();
+
+  function peekName(id) {
+    try {
+      const k = prefixFor(id) + "profile";
+      const raw = persistent ? localStorage.getItem(k) : mem[k];
+      const o = raw ? JSON.parse(raw) : null;
+      return o && typeof o.name === "string" ? o.name.trim().slice(0, 80) : "";
+    } catch (e) { return ""; }
+  }
+  async function sha(text) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  const clearCache = () => { Object.keys(cache).forEach((k) => { delete cache[k]; }); };
+
+  const accounts = {
+    list() { return reg.accounts.map((a) => ({ id: a.id, name: peekName(a.id), hasPin: !!a.pin })); },
+    current: () => currentId,
+    isLocked: () => currentId === null,
+    sessionOK: () => sessionOK,
+    pinSupported: () => !!(window.crypto && window.crypto.subtle),
+    hasPin(id) { const a = reg.accounts.filter((x) => x.id === id)[0]; return !!(a && a.pin); },
+
+    async checkPin(id, pin) {
+      const a = reg.accounts.filter((x) => x.id === id)[0];
+      if (!a) return false;
+      if (!a.pin) return true;
+      if (!accounts.pinSupported() || typeof pin !== "string") return false;
+      return (await sha(a.pin.salt + pin)) === a.pin.hash;
+    },
+    async login(id, pin) {
+      if (!(await accounts.checkPin(id, pin))) return false;
+      currentId = id; sessClear(); sessSet(id); pickSet(false); clearCache(); store.lastSnapshot = null;
+      return true;
+    },
+    logout() { sessClear(); pickSet(true); },
+
+    create(name) {
+      const n = String(name || "").trim();
+      if (!n || n.length > 80) throw new Error("Enter a name (up to 80 characters).");
+      if (reg.accounts.length >= 20) throw new Error("That is the most users this device can hold.");
+      const id = uid().replace(/[^a-z0-9]/g, "").slice(0, 20);
+      reg.accounts.push({ id: id, pin: null }); writeReg();
+      const key = prefixFor(id) + "profile", text = JSON.stringify({ name: n });
+      if (persistent) { try { localStorage.setItem(key, text); } catch (e) { /* ignore */ } } else mem[key] = text;
+      return id;
+    },
+    remove(id) {
+      if (reg.accounts.length <= 1) throw new Error("You cannot delete the only user.");
+      const i = reg.accounts.findIndex((x) => x.id === id);
+      if (i === -1) return;
+      const p = prefixFor(id);
+      NAMES.forEach((n) => [n, n + ".corrupt"].forEach((k) => { delete mem[p + k]; try { localStorage.removeItem(p + k); } catch (e) { /* ignore */ } }));
+      reg.accounts.splice(i, 1); writeReg();
+      if (id === currentId) { currentId = null; sessClear(); clearCache(); }
+    },
+    async setPin(id, pin) {
+      const a = reg.accounts.filter((x) => x.id === id)[0];
+      if (!a) return;
+      if (pin === null) { a.pin = null; writeReg(); return; }
+      if (!/^\d{4,8}$/.test(pin)) throw new Error("A PIN is 4 to 8 digits.");
+      if (!accounts.pinSupported()) throw new Error("PINs need a secure (https) page.");
+      const salt = uid();
+      a.pin = { salt: salt, hash: await sha(salt + pin) }; writeReg();
+    }
+  };
+
+  function need() { if (currentId === null) throw new Error("Nobody is signed in."); return prefixFor(currentId); }
   function rawGet(name) {
-    if (!persistent) return mem[name] === undefined ? null : mem[name];
-    try { return localStorage.getItem(PREFIX + name); } catch (e) { return null; }
+    const k = need() + name;
+    if (!persistent) return mem[k] === undefined ? null : mem[k];
+    try { return localStorage.getItem(k); } catch (e) { return null; }
   }
   function rawSet(name, text) {
-    if (!persistent) { mem[name] = text; return true; }
-    try { localStorage.setItem(PREFIX + name, text); return true; }
+    const k = need() + name;
+    if (!persistent) { mem[k] = text; return true; }
+    try { localStorage.setItem(k, text); return true; }
     catch (e) { if (NX.ui) NX.ui.toast("Could not save: browser storage is full or blocked."); return false; }
   }
   function rawDel(name) {
-    delete mem[name];
-    try { localStorage.removeItem(PREFIX + name); } catch (e) { /* ignore */ }
+    const k = need() + name;
+    delete mem[k];
+    try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
   }
 
   function load(name) {
@@ -111,8 +229,8 @@
       }
       return good;
     }
-    const merged = Object.assign({}, def.defaults, clean(name, data || {}));
-    return problems(name, merged).length ? Object.assign({}, def.defaults) : merged;
+    const merged = Object.assign(copy(def.defaults), clean(name, data || {}));
+    return problems(name, merged).length ? copy(def.defaults) : merged;
   }
 
   function ensure(name) {
@@ -129,9 +247,10 @@
     label: (n) => COLLECTIONS[n].label,
     uid: uid,
     lastSnapshot: null,
+    accounts: accounts,
 
     list(name) { return ensure(name).map((x) => Object.assign({}, x)); },
-    get(name) { return Object.assign({}, ensure(name)); },
+    get(name) { return copy(ensure(name)); },
     find(name, id) { const f = ensure(name).filter((x) => x.id === id)[0]; return f ? Object.assign({}, f) : null; },
 
     add(name, data) {
@@ -163,7 +282,7 @@
       const next = Object.assign({}, cur, clean(name, patch));
       const bad = problems(name, next);
       if (bad.length) throw new Error("Invalid " + name + " (" + bad.join(", ") + ")");
-      cache[name] = next; persist(name);
+      cache[name] = copy(next); persist(name);
     },
 
     /* ---------- backup ---------- */
@@ -206,7 +325,7 @@
           });
           cleaned[name] = out; counts[name] = out.length;
         } else {
-          const c = clean(name, src), merged = Object.assign({}, def.defaults, c), bad = problems(name, merged);
+          const c = clean(name, src), merged = Object.assign(copy(def.defaults), c), bad = problems(name, merged);
           if (bad.length) { errors.push(def.label + ": invalid " + bad.join(", ") + "."); return; }
           cleaned[name] = merged; counts[name] = 1;
         }
@@ -228,7 +347,7 @@
             cleaned[name].forEach((x) => { if (!have[x.id]) cur.push(Object.assign({}, x)); });
           }
         } else if (mode === "replace") {
-          cache[name] = Object.assign({}, cleaned[name]);
+          cache[name] = copy(cleaned[name]);
         }
         persist(name);
       });

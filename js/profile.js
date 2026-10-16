@@ -10,7 +10,7 @@
     render(root) {
       const p = S.get("profile");
       root.innerHTML =
-        '<div class="page-head"><div><h1>Profile</h1><p>How Nexus addresses you.</p></div></div>' +
+        '<div class="page-head"><div><h1>Profile</h1><p>How Nexus addresses you. Stored only in this browser.</p></div></div>' +
         '<div class="card" style="max-width:560px"><form id="pf">' +
         input("pName", "Name", p.name, 80) + input("pCourse", "Course of study", p.course, 100) +
         input("pLevel", "Level / year", p.level, 40) + input("pSchool", "School", p.school, 120) +
@@ -18,13 +18,10 @@
         '<p class="form-error" id="pErr" role="alert"></p><button class="btn primary" type="submit">Save profile</button></form></div>';
       root.querySelector("#pf").addEventListener("submit", (e) => {
         e.preventDefault();
-        const name = root.querySelector("#pName").value.trim();
-        if (!name) { root.querySelector("#pErr").textContent = "Name is required."; return; }
-        S.setObject("profile", { name: name, course: root.querySelector("#pCourse").value.trim(), level: root.querySelector("#pLevel").value.trim(),
+        S.setObject("profile", { name: root.querySelector("#pName").value.trim(), course: root.querySelector("#pCourse").value.trim(), level: root.querySelector("#pLevel").value.trim(),
           school: root.querySelector("#pSchool").value.trim(), bio: root.querySelector("#pBio").value.trim() });
         root.querySelector("#pErr").textContent = "";
-        document.getElementById("sideName").textContent = name;
-        document.getElementById("sideCourse").textContent = root.querySelector("#pCourse").value.trim();
+        NX.renderSide();
         NX.ui.toast("Profile saved");
       });
     }

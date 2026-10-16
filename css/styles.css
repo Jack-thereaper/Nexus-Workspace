@@ -48,7 +48,9 @@ h3 { font-size: 1rem; }
 #nav a:hover { background: var(--panel2); color: var(--text); }
 #nav a.active { background: rgba(79,140,255,.14); color: var(--text); box-shadow: inset 3px 0 0 var(--accent); }
 .ico { width: 20px; text-align: center; color: var(--accent2); }
-.side-foot { display: flex; gap: 10px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--line); }
+.side-foot { display: flex; gap: 10px; align-items: center; padding: 14px 18px; border: 0; border-top: 1px solid var(--line); background: none; width: 100%; text-align: left; color: var(--text); }
+.side-foot:hover { background: var(--panel2); }
+.side-foot strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
 .side-foot small { display: block; color: var(--muted); font-size: .75rem; }
 .avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: grid; place-items: center; font-weight: 800; color: #04101f; }
 
@@ -198,3 +200,35 @@ pre.code { background: var(--panel2); border: 1px solid var(--line); border-radi
   .ev { font-size: .62rem; padding: 0 3px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+
+/* ---------- login screen, account menu, HUD editor, course picker ---------- */
+.login { position: fixed; inset: 0; z-index: 70; background: var(--bg); display: grid; place-items: center; padding: 20px; overflow-y: auto; }
+.login-card { background: var(--panel); border: 1px solid var(--line); border-top: 2px solid var(--accent); border-radius: var(--radius); padding: 28px; width: min(420px, 100%); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.login-card h1 { font-size: 1.4rem; margin-bottom: 4px; }
+.login-sub { margin-bottom: 14px; font-size: .9rem; }
+.user-list { display: grid; gap: 8px; max-height: 50vh; overflow-y: auto; }
+.user-btn { display: flex; align-items: center; gap: 12px; width: 100%; background: var(--panel2); border: 1px solid var(--line); border-radius: 11px; padding: 10px 14px; text-align: left; color: var(--text); }
+.user-btn:hover { border-color: var(--accent); }
+.user-btn span:nth-child(2) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lock { border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; color: var(--muted); font-size: .7rem; }
+.menu-list { display: grid; gap: 8px; }
+button.side-foot { font: inherit; cursor: pointer; }
+
+.btn.primary { background: var(--accent); background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000)); color: #04101f; }
+.btn.primary:hover { box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 40%, transparent); }
+.chip.active { color: #04101f; }
+.hud .stat b { color: var(--text); }
+.hud .stat.accent b { color: var(--accent); }
+.swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+.swatch-btn { width: 32px; height: 32px; border-radius: 50%; border: 2px solid transparent; outline: 2px solid transparent; }
+.swatch-btn.sel { border-color: var(--bg); outline-color: var(--text); }
+.cp-list { max-height: 38vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--panel2); }
+.cp-group h3 { font-size: .75rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin: 10px 0 6px; }
+.cp-item { margin-bottom: 8px; }
+
+body.compact #view { padding-top: 16px; }
+body.compact .stat { padding: 10px 14px; }
+body.compact .stat b { font-size: 1.3rem; }
+body.compact .card { padding: 13px; }
+body.compact .row { padding: 7px 11px; }
+body.compact .page-head { margin-bottom: 12px; }

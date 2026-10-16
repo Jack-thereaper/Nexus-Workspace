@@ -71,11 +71,11 @@
           NX.ui.toast(S.label(n) + " exported");
         } else if (id === "impApply" && pending) {
           const mode = root.querySelector('input[name="mode"]:checked').value, data = pending.cleaned;
-          const apply = () => { S.importBackup(data, mode); pending = null; NX.ui.toast("Import complete"); draw(); };
+          const apply = () => { S.importBackup(data, mode); pending = null; NX.renderSide(); NX.ui.toast("Import complete"); draw(); };
           if (mode === "replace") NX.ui.confirm({ title: "Replace your data?", message: "The sections in this file will overwrite what you have now. You can undo right after.", okLabel: "Replace", danger: true, onOk: apply });
           else apply();
         } else if (id === "undoImp") {
-          if (S.undoImport()) { NX.ui.toast("Import undone"); draw(); }
+          if (S.undoImport()) { NX.renderSide(); NX.ui.toast("Import undone"); draw(); }
         } else if (id === "resetBtn") {
           NX.ui.openModal('<div class="modal-head"><h2>Reset everything?</h2><button type="button" class="icon-btn" data-close aria-label="Close">&times;</button></div>' +
             '<p class="confirm-text">This permanently erases all Nexus data in this browser. Download a backup first if you might want it back.</p>' +
@@ -89,7 +89,7 @@
           go.addEventListener("click", () => {
             if (typed.value.trim() !== "RESET") return;
             S.resetAll(); NX.ui.closeModal(); NX.ui.toast("All data erased"); pending = null; draw();
-            document.getElementById("sideName").textContent = S.get("profile").name;
+            NX.renderSide();
           });
         }
       });

@@ -53,7 +53,8 @@
     if (paint) paint(true);
   }
 
-  reset("focus");
+  // Do not read settings at load time: nobody may be signed in yet. render() picks up the real lengths.
+  st.total = st.remaining = 25 * 60 * 1000;
 
   NX.register({
     id: "focus", title: "Focus Timer", icon: "⏱",

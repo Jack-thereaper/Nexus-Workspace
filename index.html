@@ -14,10 +14,10 @@
   <aside class="sidebar" id="sidebar" aria-label="Sidebar">
     <div class="brand">NEXUS<span>.</span> <small>Workspace</small></div>
     <nav id="nav" aria-label="Sections"></nav>
-    <div class="side-foot">
-      <div class="avatar" aria-hidden="true">M</div>
-      <div><strong id="sideName">Mr Damien</strong><small id="sideCourse">Computer Engineering</small></div>
-    </div>
+    <button class="side-foot" id="sideCard" type="button" aria-label="Account options">
+      <div class="avatar" id="avatar" aria-hidden="true">N</div>
+      <div><strong id="sideName">Guest</strong><small id="sideCourse">Click to set your name</small></div>
+    </button>
   </aside>
 
   <div class="main">
@@ -29,12 +29,22 @@
     <main id="view" tabindex="-1"></main>
   </div>
 
+  <!-- Login screen. Hidden unless nobody is signed in on this tab. -->
+  <div class="login" id="login" hidden>
+    <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+      <div class="brand" style="padding:0 0 10px">NEXUS<span>.</span></div>
+      <h1 id="loginTitle">Who's using Nexus?</h1>
+      <div id="loginBody"></div>
+    </div>
+  </div>
+
   <!-- Modal root. Hidden until a form or confirm opens it. -->
   <div class="modal-backdrop" id="modal" hidden></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="js/store.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/catalog.js"></script>
   <script src="js/dashboard.js"></script>
   <script src="js/academics.js"></script>
   <script src="js/tasks.js"></script>
